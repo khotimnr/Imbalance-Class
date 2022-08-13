@@ -1,0 +1,275 @@
+---
+title: "Studi Kasus IOH2022"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::downcute:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: true
+    highlight: tango
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Library
+```{r }
+library("caret")
+library("tidyverse")
+library("knitr")
+library("ggplot2")
+library("tidyr")
+library("e1071")
+library("ROCR")
+library("rpart")
+library("moments")
+library("psych")
+library("ggcorrplot")
+library("classInt")
+library("scorecard")
+library("tidyverse")
+library("mlr3verse")
+library("e1071")
+library("rpart.plot")
+library("ranger")
+```
+
+```{r}
+library(caret)
+library(corrplot)
+library(smotefamily)
+library(DMwR)
+```
+
+```{r}
+data.reload.train <- read.csv("data_reload_train_new.csv", sep=";", header = T)
+data.reload.test <- read.csv("data_reload_test_new.csv", sep=";", header = T)
+data.reload.train
+```
+
+```{r}
+data.reload.train$current_tier <- as.factor(data.reload.train$current_tier)
+data.reload.train$vlr_attached_p3d <- as.factor(data.reload.train$vlr_attached_p3d)   
+data.reload.train$flag_arpu_90d <- as.factor(data.reload.train$flag_arpu_90d)   
+data.reload.train$flag_arpu_last_30d <- as.factor(data.reload.train$flag_arpu_last_30d)   
+data.reload.train$rgu_flag <- as.factor(data.reload.train$rgu_flag)   
+data.reload.train$rld_30d <- as.factor(data.reload.train$rld_30d)   
+data.reload.train$rld_60d <- as.factor(data.reload.train$rld_60d)   
+data.reload.train$rld_90d <- as.factor(data.reload.train$rld_90d)   
+data.reload.train$active_pack <- as.factor(data.reload.train$active_pack)   
+data.reload.train$status <- as.factor(data.reload.train$status) 
+data.reload.train$cust_flag <- as.factor(data.reload.train$cust_flag) 
+data.reload.train$tot_month_rld <- as.factor(data.reload.train$tot_month_rld)
+data.reload.train$X_kategori_denom30d <- as.factor(data.reload.train$X_kategori_denom30d)
+data.reload.train$X_kategori_frek_dan_denom <- as.factor(data.reload.train$X_kategori_frek_dan_denom)
+data.reload.train$X_kategori_tenure <- as.factor(data.reload.train$X_kategori_tenure)
+data.reload.train$rld_nm <- as.factor(data.reload.train$rld_nm) 
+```
+
+```{r}
+prop.table(table(data.reload.train$rld_nm))
+data.reload.train<- data.reload.train[1:15 ]
+data.reload.test<- data.reload.test[1:15 ]
+data.reload.train <- data.reload.train
+data.reload.test <- data.reload.test 
+```
+
+
+```{r}
+ctrl <- trainControl(method = "none",
+                     verboseIter = FALSE,
+                     sampling = "rose")
+```
+
+```{r}
+library(tictoc)
+tic("waktu komputasi")
+set.seed(42)
+model_rf_rose <- caret::train(rld_nm ~ .,
+                              data = data.reload.train,
+                              method = "rf",
+                              preProcess = c("scale", "center"),
+                              trControl = ctrl)
+final_rose <- data.frame(actual = data.reload.test$rld_nm,
+                         predict(model_rf_rose, newdata = data.reload.test, type = "prob"))
+final_rose$predict <- ifelse(final_rose$X1 > 0.5, "1", "0")
+cm_rose<- confusionMatrix(as.factor(final_rose$actual), as.factor(final_rose$predict),positive="1")
+cm_rose
+toc()
+```
+
+
+
+# Tanpa Resampling
+```{r}
+tic("waktu komputasi")
+set.seed(42)
+model_rf <- caret::train(rld_nm ~ .,
+                         data = data.reload.train,
+                         method = "rf",
+                         preProcess = c("scale", "center"),
+                         trControl = trainControl(method = "none", 
+                                                  verboseIter = FALSE))
+
+final <- data.frame(actual = data.reload.test$rld_nm,
+                    predict(model_rf, newdata = data.reload.test, type = "prob"))
+final$predict <- ifelse(final$X1 > 0.5, "1", "0")
+cm_original<- confusionMatrix(as.factor(final$actual), as.factor(final$predict),positive="1")
+cm_original
+toc()
+```
+
+
+#Undersampling
+```{r}
+tic("waktu komputasi")
+ctrl <- trainControl(method = "none", 
+                     verboseIter = FALSE,
+                     sampling = "down")
+
+set.seed(42)
+model_rf_under <- caret::train(rld_nm ~ .,
+                               data = data.reload.train,
+                               method = "rf",
+                               preProcess = c("scale", "center"),
+                               trControl = ctrl)
+
+final_under <- data.frame(actual = data.reload.test$rld_nm,
+                          predict(model_rf_under, newdata = data.reload.test, type = "prob"))
+final_under$predict <- ifelse(final_under$X1 > 0.5, "1", "0")
+cm_under <- confusionMatrix(as.factor(final_under$actual), as.factor(final_under$predict),positive="1")
+cm_under
+toc()
+```
+
+#Oversampling
+```{r}
+tic("waktu komputasi")
+ctrl <- trainControl(method = "none", 
+                     verboseIter = FALSE,
+                     sampling = "up")
+
+set.seed(42)
+model_rf_over <- caret::train(rld_nm ~ .,
+                              data = data.reload.train,
+                              method = "rf",
+                              preProcess = c("scale", "center"),
+                              trControl = ctrl)
+final_over <- data.frame(actual = data.reload.test$rld_nm,
+                          predict(model_rf_over, newdata = data.reload.test, type = "prob"))
+final_over$predict <- ifelse(final_over$X1 > 0.5, "1", "0")
+cm_over <- confusionMatrix(as.factor(final_over$actual), as.factor(final_over$predict),positive="1")
+cm_over
+toc()
+```
+
+
+
+#SMOTE
+```{r}
+tic("waktu komputasi")
+ctrl <- trainControl(method = "none", 
+                     verboseIter = FALSE,
+                     sampling = "smote")
+set.seed(42)
+model_rf_smote <- caret::train(rld_nm ~ .,
+                               data = data.reload.train,
+                               method = "rf",
+                               preProcess = c("scale", "center"),
+                               trControl = ctrl)
+final_smote <- data.frame(actual = data.reload.test$rld_nm,
+                          predict(model_rf_smote, newdata = data.reload.test, type = "prob"))
+final_smote$predict <- ifelse(final_smote$X1 > 0.5, "1", "0")
+cm_smote <- confusionMatrix(as.factor(final_smote$actual), as.factor(final_smote$predict),positive="1")
+cm_smote
+toc()
+```
+
+# RUS BOOST
+```{r}
+tic("waktu komputasi")
+library(ebmc)
+model2 <- rus(rld_nm ~ ., data = data.reload.train, size = 20, alg = "rf", ir = 1, rf.ntree = 100)
+final_rus <- data.frame(actual = data.reload.test$rld_nm,
+                        predict(model2, newdata = data.reload.test, type = "prob"))
+final_rus$predict <- ifelse(final_rus[2] > 0.5, "0", "1")
+cm_rus <- confusionMatrix(as.factor(final_rus$predict), as.factor(data.reload.test$rld_nm),positive="1")
+cm_rus
+toc()
+```
+
+# Under Bagging
+```{r}
+tic("waktu komputasi")
+model_rf_ub <- ub(rld_nm ~ ., data = data.reload.train, size = 20, alg = "rf", ir = 1, rf.ntree = 100)
+final_ub <- data.frame(actual = data.reload.test$rld_nm,
+                        predict(model_rf_ub, newdata = data.reload.test, type = "prob"))
+final_ub
+final_ub$predict <- ifelse(final_ub[2] > 0.5, "0", "1")
+cm_ub <- confusionMatrix(as.factor(final_ub$predict), as.factor(data.reload.test$rld_nm),positive="1")
+cm_ub
+toc()
+```
+
+
+# Komparasi 
+```{r}
+hasil.dt <- rbind(c(cm_rose$overall[1], cm_rose$byClass[1], cm_rose$byClass[2]),
+                  c(cm_original$overall[1], cm_original$byClass[1], cm_original$byClass[2]),
+                  c(cm_under$overall[1], cm_under$byClass[1], cm_under$byClass[2]),
+                  c(cm_over$overall[1], cm_over$byClass[1], cm_over$byClass[2]),
+                  c(cm_smote$overall[1], cm_smote$byClass[1], cm_smote$byClass[2]),
+                  c(cm_rus$overall[1], cm_rus$byClass[1], cm_rus$byClass[2]),
+                  c(cm_ub$overall[1], cm_rose$byClass[1], cm_ub$byClass[2])
+                  )
+row.names(hasil.dt) <-c("RF ROSE","RF Original","RF Undersampling","RF Oversampling","RF SMOTE"
+                        ,"RF RUS BOOTS","RF Underbagging")
+
+hasil.dt <- as.data.frame(hasil.dt)
+dplyr::arrange(.data = hasil.dt, desc(Accuracy))
+```
+
+
+
+```{r}
+# Comparasi
+#models <- list(original = model_rf,
+#               under = model_rf_under,
+#               over = model_rf_over,
+#               smote = model_rf_smote,
+#               rose = model_rf_rose,
+#               rusBoost = model2,
+#               underbag = model_rf_ub)
+#resampling <- resamples(models)
+#resampling
+```
+
+```{r}
+#library(dplyr)
+#comparison <- data.frame(model = names(models),
+#                         Sensitivity = rep(NA, length(models)),
+#                         Specificity = rep(NA, length(models)),
+#                         Precision = rep(NA, length(models)),
+#                         Recall = rep(NA, length(models)),
+#                         F1 = rep(NA, length(models)))
+#for (name in names(models)) {
+#  model <- get(paste0("cm_", name))
+  
+#  comparison[comparison$model == name, ] <- filter(comparison, model == name) %>%
+#    mutate(Sensitivity = model$byClass["Sensitivity"],
+#           Specificity = model$byClass["Specificity"],
+#           Precision = model$byClass["Precision"],
+#           Recall = model$byClass["Recall"],
+#           F1 = model$byClass["F1"])
+#}
+#library(tidyr)
+#comparison %>%
+#  gather(x, y, Sensitivity:F1) %>%
+#  ggplot(aes(x = x, y = y, color = model)) +
+#  geom_jitter(width = 0.2, alpha = 0.5, size = 3)
+```
+
+
+
